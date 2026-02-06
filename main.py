@@ -3,7 +3,7 @@ from capstone import *
 from elftools.elf.elffile import ELFFile
 import argparse
 from cli import args
-from formats.select_loader import select_arch
+from loader.select_loader import select_arch
 
 if __name__ == "__main__":
     arch, file = args.parsing_arg()
