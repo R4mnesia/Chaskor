@@ -19,7 +19,20 @@ def elf_loader64(file):
     md = Cs(CS_ARCH_X86, CS_MODE_64)
     md.detail = True
     for instr in md.disasm(code, addr):
+        print(f"[CODE]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
 
+        if instr.mnemonic == "jne" or instr.mnemonic == "je" or instr.mnemonic == "jmp":
+
+            # addr of instruction > addr jump == loop
+            print(hex(instr.address))
+            print(instr.op_str)
+            if hex(instr.address) > instr.op_str:
+                print(f"[LOOP]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+            
+            # addr of instruction < addr jump == if/else         
+            elif hex(instr.address) < instr.op_str:
+                print(f"[CONDITION]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+        
         if instr.mnemonic == "xor":
             op1, op2 = instr.operands
 
