@@ -1,6 +1,7 @@
 from elftools.elf.elffile import ELFFile
 from capstone import Cs, CS_ARCH_X86, CS_MODE_64
 from capstone.x86 import *
+import elftools.common.utils as ecu
 
 def elf_loader32(file):
     print("ELF 32 bits loader")
@@ -17,6 +18,7 @@ def check_stripped(file):
             addr = symtab['sh_addr']
 
             for sym in symtab.iter_symbols():
+                print(f"main addr: {hex(sym.entry['st_value'])}")
                 if sym.name == "main":
                     print(f"main addr: {hex(sym.entry['st_value'])}")
                     print(f"main addr: {sym.entry['st_value']}")
@@ -24,6 +26,18 @@ def check_stripped(file):
     except:
         return True
 
+
+def read_rodata(file):
+
+    with open(file, 'rb') as f:
+        elf = ELFFile(f)
+        rodata = elf.get_section_by_name('.rodata')
+        code = rodata.data()
+        addr = rodata['sh_addr']# - rodata['sh_offset']
+
+    #print(rodata)
+    #print(f"addr: {hex(addr)}")
+    print(f"data = {hex(addr)}: {code}")
 
 def elf_loader64(file):
 
@@ -33,7 +47,6 @@ def elf_loader64(file):
         text = elf.get_section_by_name('.text')
         code = text.data()
         addr = text['sh_addr']
-
     #if check_stripped(file) == True:
     #    print("File is stripped")
     addr_main = check_stripped(file)
@@ -82,3 +95,5 @@ def elf_loader64(file):
 
             else:
                 print(f"[OTHER]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+    read_rodata(file)
+    
