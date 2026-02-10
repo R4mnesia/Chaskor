@@ -7,6 +7,24 @@ def elf_loader32(file):
 
 # CS_OP_IMM = immediate operands
 
+def check_stripped(file):
+
+    try: 
+        with open(file, 'rb') as f:
+            elf = ELFFile(f)
+            symtab = elf.get_section_by_name('.symtab')
+            code = symtab.data()
+            addr = symtab['sh_addr']
+
+            for sym in symtab.iter_symbols():
+                if sym.name == "main":
+                    print(f"main addr: {hex(sym.entry['st_value'])}")
+                    print(f"main addr: {sym.entry['st_value']}")
+                    return hex(sym.entry['st_value'])
+    except:
+        return True
+
+
 def elf_loader64(file):
 
     print("ELF 64 bits loader")
@@ -16,16 +34,23 @@ def elf_loader64(file):
         code = text.data()
         addr = text['sh_addr']
 
+    #if check_stripped(file) == True:
+    #    print("File is stripped")
+    addr_main = check_stripped(file)
     md = Cs(CS_ARCH_X86, CS_MODE_64)
     md.detail = True
+
+    #for instr_1 in md.disasm(code, addr):
     for instr in md.disasm(code, addr):
+
+        if hex(instr.address) == addr_main:
+            print(f"[MAIN]\n: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+
         print(f"[CODE]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
 
         if instr.mnemonic == "jne" or instr.mnemonic == "je" or instr.mnemonic == "jmp":
-
+            
             # addr of instruction > addr jump == loop
-            print(hex(instr.address))
-            print(instr.op_str)
             if hex(instr.address) > instr.op_str:
                 print(f"[LOOP]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
             
