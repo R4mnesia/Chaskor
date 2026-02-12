@@ -18,30 +18,36 @@ def check_stripped(file):
             addr = symtab['sh_addr']
 
             for sym in symtab.iter_symbols():
-                print(f"main addr: {hex(sym.entry['st_value'])}")
                 if sym.name == "main":
-                    print(f"main addr: {hex(sym.entry['st_value'])}")
-                    print(f"main addr: {sym.entry['st_value']}")
                     return hex(sym.entry['st_value'])
     except:
         return True
 
 
 def read_rodata(file):
-
     with open(file, 'rb') as f:
         elf = ELFFile(f)
         rodata = elf.get_section_by_name('.rodata')
         code = rodata.data()
-        addr = rodata['sh_addr']# - rodata['sh_offset']
+        base_addr = rodata['sh_addr']
 
-    #print(rodata)
-    #print(f"addr: {hex(addr)}")
-    print(f"data = {hex(addr)}: {code}")
+    print(f"\n{hex(base_addr)} @.rodata: \n{code}")
+    return base_addr, code
+
+def dump_hex(base_addr, data):
+    
+    for i in range(0, len(data), 16): # increment 16
+        chunk = data[i:i + 16]
+        hex_bytes = " ".join(f"{b:02x}" for b in chunk)
+        print(f"  {base_addr + i:08x}  {hex_bytes}")
+    print("")
 
 def elf_loader64(file):
-
     print("ELF 64 bits loader")
+
+    base_addr, code = read_rodata(file)
+    dump_hex(base_addr, code)
+
     with open(file, 'rb') as f:
         elf = ELFFile(f)
         text = elf.get_section_by_name('.text')
@@ -53,19 +59,52 @@ def elf_loader64(file):
     md = Cs(CS_ARCH_X86, CS_MODE_64)
     md.detail = True
 
-    #for instr_1 in md.disasm(code, addr):
-    for instr in md.disasm(code, addr):
+    instructions = list(md.disasm(code, addr))
+
+    #for instr in instructions:
+#
+     #   print(f"[CODE]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+#
+     #   if instr.mnemonic.startswith("j"):
+#
+     #       if instr.operands[0].type == CS_OP_IMM:
+     #           target = instr.operands[0].imm
+#
+     #           if target < instr.address:
+     #               print(f"[LOOP DETECTED]")
+     #               print(f"  Jump at 0x{instr.address:x}")
+     #               print(f"  Loop start at 0x{target:x}")
+
+    instructions = list(md.disasm(code, addr))
+    #print(f"instruction: {instructions[0]}")
+    #print(f"instruction: {instructions[1]}")
+
+    # lsit -> appd operand -> 
+    loop = [""]
+    for instr in instructions:
 
         if hex(instr.address) == addr_main:
-            print(f"[MAIN]\n: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+            print(f"\n< main >: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
 
         print(f"[CODE]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
 
         if instr.mnemonic == "jne" or instr.mnemonic == "je" or instr.mnemonic == "jmp":
             
             # addr of instruction > addr jump == loop
-            if hex(instr.address) > instr.op_str:
-                print(f"[LOOP]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+            if hex(instr.address) > instr.op_str and hex(instr.address) > addr_main:
+                print(f"\n[LOOP_END]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+                addr_loop_start = instr.op_str
+                addr_loop_end = hex(instr.address)
+                print(addr_loop_start)
+                print(instr.op_str)
+                for lst in instructions:
+                    if hex(lst.address) == addr_loop_start:
+                        print(f"\n[LOOP_START]: 0x{lst.address:x}:\t{lst.mnemonic}\t{lst.op_str}")
+                    if lst.op_str != addr_loop_start and hex(lst.address) > addr_loop_start and hex(lst.address) < addr_loop_end:
+                        print(f"0x{lst.address:x}:\t{lst.mnemonic}\t{lst.op_str}")
+                        loop.append(f"0x{lst.address:x}:\t{lst.mnemonic}\t{lst.op_str}")
+                print("")
+
             
             # addr of instruction < addr jump == if/else         
             elif hex(instr.address) < instr.op_str:
@@ -95,5 +134,7 @@ def elf_loader64(file):
 
             else:
                 print(f"[OTHER]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
-    read_rodata(file)
-    
+
+    #print(f"LOOP:\n")
+    #for i in loop:
+    #    print(f"{i}")
