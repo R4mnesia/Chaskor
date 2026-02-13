@@ -8,6 +8,20 @@ def elf_loader32(file):
 
 # CS_OP_IMM = immediate operands
 
+def function_is_intern(file, target_addr):
+    
+    with open(file, 'rb') as f:
+        elf = ELFFile(f)
+        text_section = elf.get_section_by_name('.text')
+        text_start = text_section['sh_addr']
+        text_end = text_start + text_section['sh_size']
+
+        if text_start <= target_addr < text_end:
+            print("Call intern (function of binary)")
+        else:
+            print("Call extern (libc / plt / dynsym)")
+
+
 def elf_loader64(file):
     print("ELF 64 bits loader")
 
@@ -19,17 +33,22 @@ def elf_loader64(file):
         text = elf.get_section_by_name('.text')
         code = text.data()
         addr = text['sh_addr']
-    #if check_stripped(file) == True:
-    #    print("File is stripped")
-    addr_main = check_stripped(file)
+
+    addr_main = check_stripped(file) # verif with protection
+
     md = Cs(CS_ARCH_X86, CS_MODE_64)
     md.detail = True
 
     instructions = list(md.disasm(code, addr))
+
+    ignore = ["_init", "_start", "frame_dummy", "register_tm_clones", "deregister_tm_clones"]
     loop = [""]
     for instr in instructions:
+        
+        #f sym.name in ignore:
+        #   continue
 
-        if hex(instr.address) == addr_main:
+        if instr.address == addr_main:
             print(f"\n< main >: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
 
         print(f"[CODE]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
@@ -55,7 +74,7 @@ def elf_loader64(file):
 
             
             # addr of instruction < addr jump == if/else         
-            elif hex(instr.address) < instr.op_str:
+            elif instr.address < instr.operands[0].imm:
                 print(f"[CONDITION]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
         
         if instr.mnemonic == "xor":
@@ -82,6 +101,13 @@ def elf_loader64(file):
 
             else:
                 print(f"[OTHER]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+
+        if instr.mnemonic == "call":
+            print(f"[CALL FUNCTION]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+
+            func_addr = instr.operands[0].imm
+            function_is_intern(file, func_addr)
+
 
     #print(f"LOOP:\n")
     #for i in loop:
