@@ -32,3 +32,25 @@ def dump_hex(base_addr, data):
         hex_bytes = " ".join(f"{b:02x}" for b in chunk)
         print(f"  {base_addr + i:08x}  {hex_bytes}")
     print("")
+
+def read_symtab(file, target_addr):
+    with open(file, 'rb') as f:
+        elf = ELFFile(f)
+        symtab = elf.get_section_by_name('.symtab')
+        code = symtab.data()
+        base_addr = symtab['sh_addr']
+
+        if not symtab:
+            print("not")
+
+        for sym in symtab.iter_symbols():
+            #print(f"st_value: {hex(sym['st_value'])}") # address
+            #print(f"sym.name: {sym.name}")
+            if target_addr == sym['st_value']:
+                print(f"[CALL INTERN FUNCTION {sym.name}]: {hex(target_addr)}")
+
+
+
+    #print(f"\n{hex(base_addr)} @.symtab: \n{code}")
+    #dump_hex(base_addr, code)
+    return base_addr, code
