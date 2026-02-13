@@ -19,7 +19,7 @@ def check_stripped(file):
 
             for sym in symtab.iter_symbols():
                 if sym.name == "main":
-                    return hex(sym.entry['st_value'])
+                    return sym.entry['st_value']
     except:
         return True
 
@@ -60,26 +60,6 @@ def elf_loader64(file):
     md.detail = True
 
     instructions = list(md.disasm(code, addr))
-
-    #for instr in instructions:
-#
-     #   print(f"[CODE]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
-#
-     #   if instr.mnemonic.startswith("j"):
-#
-     #       if instr.operands[0].type == CS_OP_IMM:
-     #           target = instr.operands[0].imm
-#
-     #           if target < instr.address:
-     #               print(f"[LOOP DETECTED]")
-     #               print(f"  Jump at 0x{instr.address:x}")
-     #               print(f"  Loop start at 0x{target:x}")
-
-    instructions = list(md.disasm(code, addr))
-    #print(f"instruction: {instructions[0]}")
-    #print(f"instruction: {instructions[1]}")
-
-    # lsit -> appd operand -> 
     loop = [""]
     for instr in instructions:
 
@@ -89,18 +69,20 @@ def elf_loader64(file):
         print(f"[CODE]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
 
         if instr.mnemonic == "jne" or instr.mnemonic == "je" or instr.mnemonic == "jmp":
-            
+
+            target_jmp = instr.operands[0].imm
+
             # addr of instruction > addr jump == loop
-            if hex(instr.address) > instr.op_str and hex(instr.address) > addr_main:
+            if target_jmp < instr.address and instr.address > addr_main:
                 print(f"\n[LOOP_END]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
-                addr_loop_start = instr.op_str
-                addr_loop_end = hex(instr.address)
-                print(addr_loop_start)
-                print(instr.op_str)
+                
+                addr_loop_start = target_jmp
+                addr_loop_end = instr.address
+
                 for lst in instructions:
-                    if hex(lst.address) == addr_loop_start:
+                    if lst.address == addr_loop_start:
                         print(f"\n[LOOP_START]: 0x{lst.address:x}:\t{lst.mnemonic}\t{lst.op_str}")
-                    if lst.op_str != addr_loop_start and hex(lst.address) > addr_loop_start and hex(lst.address) < addr_loop_end:
+                    if addr_loop_start < lst.address < addr_loop_end:
                         print(f"0x{lst.address:x}:\t{lst.mnemonic}\t{lst.op_str}")
                         loop.append(f"0x{lst.address:x}:\t{lst.mnemonic}\t{lst.op_str}")
                 print("")
