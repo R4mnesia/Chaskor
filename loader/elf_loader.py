@@ -15,9 +15,10 @@ def function_is_intern(file, target_addr):
         text_section = elf.get_section_by_name('.text')
         text_start = text_section['sh_addr']
         text_end = text_start + text_section['sh_size']
+    
 
         if text_start <= target_addr < text_end:
-            #print("Call intern (function of binary)")
+            print(f"Call intern: {hex(target_addr)} (function of binary)")
             return True
         else:
             #print("Call extern (libc / plt / dynsym)")
@@ -39,11 +40,10 @@ def elf_loader64(file):
     addr_main = check_stripped(file) # verif with protection
 
     md = Cs(CS_ARCH_X86, CS_MODE_64)
-    md.detail = True
+    md.detail = True    
 
     instructions = list(md.disasm(code, addr))
 
-    ignore = ["_init", "_start", "frame_dummy", "register_tm_clones", "deregister_tm_clones"]
     loop = [""]
     for instr in instructions:
         
@@ -105,12 +105,20 @@ def elf_loader64(file):
         elif instr.mnemonic == "call":
 
             func_addr = instr.operands[0].imm
-            if function_is_intern(file, func_addr) == True:
+            if function_is_intern(file, func_addr):
+                print(f"addr {hex(func_addr)}")
                 read_symtab(file, instr.operands[0].imm)
-                #print(f"[CALL INTERN FUNCTION]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
-            else:    
+                #print(f"[CALL INTERN FUNCTION]: \n0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+            else:
+            #    print(f"Search: {hex(instr.operands[0].imm)}")
+            #    read_dynsym(file, instr.operands[0].imm)
                 print(f"[CALL EXTERN FUNCTION]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
         else:
+            if instr.mnemonic == "call":
+                func_addr = instr.operands[0].imm
+                if function_is_intern(file, func_addr):
+                    print(f"addr e{hex(func_addr)}")
+                    read_symtab(file, instr.operands[0].imm)
             print(f"[CODE]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
     
     #read_symtab(file)
