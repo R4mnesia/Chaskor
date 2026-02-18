@@ -15,6 +15,21 @@ def check_stripped(file):
     except:
         return True
 
+def get_start_and_end_main(file):
+
+    with open(file, 'rb') as f:
+        elf = ELFFile(f)
+        symtab = elf.get_section_by_name('.symtab')
+        code = symtab.data()
+        addr = symtab['sh_addr']
+    
+        for sym in symtab.iter_symbols():
+            if sym.name == "main":
+                start = sym.entry['st_value']
+                size = sym.entry['st_size']
+                end = start + size
+                return start, end
+
 def read_rodata(file):
     with open(file, 'rb') as f:
         elf = ELFFile(f)
@@ -47,8 +62,8 @@ def read_symtab(file, target_addr):
         for sym in symtab.iter_symbols():
             #print(f"symtab sym.name: {sym.name}")
             if target_addr == sym['st_value'] and sym.name not in ignore:
-                print(f"symtab st_value: {sym['st_value']}") # address
                 print(f"[CALL INTERN FUNCTION {sym.name}]: {hex(target_addr)}\n")
+                return sym.name, hex(target_addr)
 
     #print(f"\n{hex(base_addr)} @.symtab: \n{code}")
     #dump_hex(base_addr, code)

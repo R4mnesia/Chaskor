@@ -10,5 +10,4 @@ if __name__ == "__main__":
     loader_func, bits = select_arch(arch, file)
 
     loader_func(file)
-    print(f"Loader on {bits} bits")
     #disasm_elf(sys.argv[1])

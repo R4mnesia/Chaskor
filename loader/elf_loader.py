@@ -18,12 +18,38 @@ def function_is_intern(file, target_addr):
     
 
         if text_start <= target_addr < text_end:
-            print(f"Call intern: {hex(target_addr)} (function of binary)")
+            #print(f"Call intern: {hex(target_addr)} (function of binary)")
             return True
         else:
             #print("Call extern (libc / plt / dynsym)")
             return False
 
+def get_main_list(instructions, addr_main):
+    main = [""]
+    for instr in instructions:
+        if instr.address >= addr_main:
+            main.append(f"0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+    return main
+
+def xor_search(instr, file):
+    if instr.mnemonic == "xor":
+        op1, op2 = instr.operands
+
+        if op1.type == CS_OP_REG and op2.type == CS_OP_REG: # xor ecx, ecx
+            if op1.reg == op2.reg:
+                print(f"[ZERO]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+            elif op1.reg != op2.reg:
+                print(f"[MIX REG]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+
+            elif op1.type == CS_OP_REG and op2.type == CS_OP_IMM: # xor ecx, 0x33
+                print(f"[KEY]:  0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+
+            elif op1.type == CS_OP_MEM:
+                if op2.type == CS_OP_REG:
+                    print(f"[REG KEY]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+                elif op2.type == CS_OP_IMM:
+                    print(f"[MEM KEY]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+                
 
 def elf_loader64(file):
     print("ELF 64 bits loader")
@@ -44,81 +70,70 @@ def elf_loader64(file):
 
     instructions = list(md.disasm(code, addr))
 
+    start_main, end_main = get_start_and_end_main(file)
+
     loop = [""]
+    addr_intern_func = []
+    
+    print("<main>:")
     for instr in instructions:
-        
-        #f sym.name in ignore:
-        #   continue
 
-        if instr.address == addr_main:
-            print(f"\n< main >:")
-
-        if instr.mnemonic == "jne" or instr.mnemonic == "je" or instr.mnemonic == "jmp":
-
-            target_jmp = instr.operands[0].imm
-
-            # addr of instruction > addr jump == loop
-            if target_jmp < instr.address and instr.address > addr_main:
-                print(f"\n[LOOP_END]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
-                
-                addr_loop_start = target_jmp
-                addr_loop_end = instr.address
-
-                for lst in instructions:
-                    if lst.address == addr_loop_start:
-                        print(f"\n[LOOP_START]: \n0x{lst.address:x}:\t{lst.mnemonic}\t{lst.op_str}")
-                    if addr_loop_start < lst.address < addr_loop_end:
-                        print(f"0x{lst.address:x}:\t{lst.mnemonic}\t{lst.op_str}")
-                        loop.append(f"0x{lst.address:x}:\t{lst.mnemonic}\t{lst.op_str}")
-                print("")
-
+        if instr.address >= start_main and instr.address <= end_main:
             
-            # addr of instruction < addr jump == if/else         
-            elif instr.address < instr.operands[0].imm:
-                print(f"[CONDITION]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
-        
-        elif instr.mnemonic == "xor":
-            op1, op2 = instr.operands
+            if instr.mnemonic == "jne" or instr.mnemonic == "je" or instr.mnemonic == "jmp":
 
-            if op1.type == CS_OP_REG and op2.type == CS_OP_REG: # xor ecx, ecx
-                if op1.reg == op2.reg:
-                    print(f"[ZERO]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
-                elif op1.reg != op2.reg:
-                    print(f"[MIX REG]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+                target_jmp = instr.operands[0].imm
 
-            elif op1.type == CS_OP_REG and op2.type == CS_OP_IMM: # xor ecx, 0x33
-                print(f"[KEY]:  0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
-            
-            elif op1.type == CS_OP_MEM:
-                if op2.type == CS_OP_REG:
-                    print(f"[REG KEY]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
-                elif op2.type == CS_OP_IMM:
-                    print(f"[MEM KEY]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+                # addr of instruction > addr jump == loop
+                if target_jmp < instr.address and instr.address > addr_main:
+                    #print(f"\n[LOOP_END]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+
+                    addr_loop_start = target_jmp
+                    addr_loop_end = instr.address
+
+                    for lst in instructions:
+                        #xor_search(lst, file)
+                        if lst.address == addr_loop_start:
+                            print(f"\n[LOOP_START]: \n0x{lst.address:x}:\t{lst.mnemonic}\t{lst.op_str}")
+                        if addr_loop_start < lst.address < addr_loop_end:
+                            print(f"0x{lst.address:x}:\t{lst.mnemonic}\t{lst.op_str}")
+                    print("")
+            elif instr.mnemonic == "xor":
+                op1, op2 = instr.operands
+
+                if op1.type == CS_OP_REG and op2.type == CS_OP_REG: # xor ecx, ecx
+                    if op1.reg == op2.reg:
+                        print(f"[ZERO]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+                    elif op1.reg != op2.reg:
+                        print(f"[MIX REG]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+
+                elif op1.type == CS_OP_REG and op2.type == CS_OP_IMM: # xor ecx, 0x33
+                    print(f"[KEY]:  0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+
+                elif op1.type == CS_OP_MEM:
+                    if op2.type == CS_OP_REG:
+                        print(f"[REG KEY]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+                    elif op2.type == CS_OP_IMM:
+                        print(f"[MEM KEY]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
                 
                 #base = instr.reg_name(op1.mem.base)
                 #if base in ("rbp", "rsp"):
                 #    print(f"[STACK LOCAL VARIABLE]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+            elif instr.mnemonic == "call":
 
-            else:
-                print(f"[OTHER]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
-
-        elif instr.mnemonic == "call":
-
-            func_addr = instr.operands[0].imm
-            if function_is_intern(file, func_addr):
-                print(f"addr {hex(func_addr)}")
-                read_symtab(file, instr.operands[0].imm)
-                #print(f"[CALL INTERN FUNCTION]: \n0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
-            else:
-            #    print(f"Search: {hex(instr.operands[0].imm)}")
-            #    read_dynsym(file, instr.operands[0].imm)
-                print(f"[CALL EXTERN FUNCTION]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
-        else:
-            if instr.mnemonic == "call":
                 func_addr = instr.operands[0].imm
                 if function_is_intern(file, func_addr):
-                    print(f"addr e{hex(func_addr)}")
-                    read_symtab(file, instr.operands[0].imm)
-            print(f"[CODE]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
-    
-    #read_symtab(file)
+                    #print(f"addr {hex(func_addr)}")
+                    func_name, addr_name = read_symtab(file, instr.operands[0].imm)
+                    addr_intern_func.append((func_name, hex(func_addr)))
+                    #print(f"[CALL INTERN FUNCTION]: \n0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+                else:
+                #    print(f"Search: {hex(instr.operands[0].imm)}")
+                #    read_dynsym(file, instr.operands[0].imm)
+                    print(f"[CALL EXTERN FUNCTION]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+            else:
+                print(f"[CODE]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+
+    print("INTERN FUNC:")
+    for name, addr in addr_intern_func:
+        print(f"{name}: {addr}")
