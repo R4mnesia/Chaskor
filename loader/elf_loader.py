@@ -50,6 +50,19 @@ def xor_search(instr, file):
                 elif op2.type == CS_OP_IMM:
                     print(f"[MEM KEY]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
                 
+def extract_function(file, instructions, func_name, func_addr):
+
+    start_func, end_func = extract_intern_function_addr(file, func_name, func_addr)
+    if start_func == 0 and end_func == 0:
+        print("NULL ADDR")
+        return 
+
+    print(f"Function {func_name}:")
+    for instr in instructions:
+        if instr.address >= start_func and instr.address <= end_func:
+            print(f"[CODE]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+
+
 
 def elf_loader64(file):
     print("ELF 64 bits loader")
@@ -86,13 +99,10 @@ def elf_loader64(file):
 
                 # addr of instruction > addr jump == loop
                 if target_jmp < instr.address and instr.address > addr_main:
-                    #print(f"\n[LOOP_END]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
-
                     addr_loop_start = target_jmp
                     addr_loop_end = instr.address
 
                     for lst in instructions:
-                        #xor_search(lst, file)
                         if lst.address == addr_loop_start:
                             print(f"\n[LOOP_START]: \n0x{lst.address:x}:\t{lst.mnemonic}\t{lst.op_str}")
                         if addr_loop_start < lst.address < addr_loop_end:
@@ -116,24 +126,19 @@ def elf_loader64(file):
                     elif op2.type == CS_OP_IMM:
                         print(f"[MEM KEY]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
                 
-                #base = instr.reg_name(op1.mem.base)
-                #if base in ("rbp", "rsp"):
-                #    print(f"[STACK LOCAL VARIABLE]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
             elif instr.mnemonic == "call":
 
                 func_addr = instr.operands[0].imm
                 if function_is_intern(file, func_addr):
-                    #print(f"addr {hex(func_addr)}")
                     func_name, addr_name = read_symtab(file, instr.operands[0].imm)
-                    addr_intern_func.append((func_name, hex(func_addr)))
-                    #print(f"[CALL INTERN FUNCTION]: \n0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+                    addr_intern_func.append((func_name, func_addr))
+                    print(f"[INTERN FUNCTION {func_name}]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}\n")
                 else:
-                #    print(f"Search: {hex(instr.operands[0].imm)}")
-                #    read_dynsym(file, instr.operands[0].imm)
                     print(f"[CALL EXTERN FUNCTION]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
             else:
                 print(f"[CODE]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
 
-    print("INTERN FUNC:")
+    print("\nINTERN FUNC:")
     for name, addr in addr_intern_func:
-        print(f"{name}: {addr}")
+        extract_function(file, instructions, name, addr)
+    

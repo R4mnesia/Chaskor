@@ -40,6 +40,24 @@ def read_rodata(file):
     print(f"\n{hex(base_addr)} @.rodata: \n{code}")
     return base_addr, code
 
+def extract_intern_function_addr(file, func_name, func_addr):
+    with open(file, 'rb') as f:
+        elf = ELFFile(f)
+        symtab = elf.get_section_by_name('.symtab')
+        code = symtab.data()
+        base_addr = symtab['sh_addr']
+
+        if not symtab:
+            print("not")
+
+        for sym in symtab.iter_symbols():
+            if func_addr == sym['st_value']: #and sym.name == func_name:
+                start = sym.entry['st_value']
+                size = sym.entry['st_size']
+                end = start + size
+                return start, end
+    return 0, 0
+
 def dump_hex(base_addr, data):
     
     for i in range(0, len(data), 16): # increment 16
@@ -62,7 +80,7 @@ def read_symtab(file, target_addr):
         for sym in symtab.iter_symbols():
             #print(f"symtab sym.name: {sym.name}")
             if target_addr == sym['st_value'] and sym.name not in ignore:
-                print(f"[CALL INTERN FUNCTION {sym.name}]: {hex(target_addr)}\n")
+                #print(f"[CALL INTERN FUNCTION {sym.name}]: {hex(target_addr)}\n")
                 return sym.name, hex(target_addr)
 
     #print(f"\n{hex(base_addr)} @.symtab: \n{code}")
