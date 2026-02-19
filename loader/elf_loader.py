@@ -94,7 +94,6 @@ def extract_key_tab(instructions, instr, addr_start, addr_end):
                     addr_loop_start = target_jmp
                     addr_loop_end = instr.address
 
-                    print(instr.operands[0])
                     for i in range(len(instructions)):
                         lst = instructions[i]
                         if lst.address >= addr_start and lst.address <= addr_end:
@@ -119,6 +118,7 @@ def extract_key_tab(instructions, instr, addr_start, addr_end):
                                 reg_xor = instructions[i + 1].reg_name(reg_id)
                                 print(f"reg_xor: {reg_xor}")
 
+                                # get type of register in mov
                                 reg_op_k = lst.operands[0]
                                 reg_id_k = reg_op_k.reg
                                 reg_key = lst.reg_name(reg_id_k)
@@ -126,29 +126,46 @@ def extract_key_tab(instructions, instr, addr_start, addr_end):
 
                                 if reg_xor == reg_key:
                                     print("IS KEY")
+
                                 # check if mov is key tab
                                 # https://d-capstone.dpldocs.info/v0.0.2/capstone.x86.x86_op_mem.html
-                                if lst.mnemonic == "mov":
-                                     op = lst.operands[1]
+                                op = lst.operands[1]
+                                
+                                displacement_value = 0
+                                base_register = 0
+                                if op.type == X86_OP_MEM:
+                                    mem = op.mem
+                                    displacement_value = mem.disp
+                                    base_register = mem.base
+                                    """if (mem.base == X86_REG_RBP and
+                                        mem.index == X86_REG_RAX and
+                                        mem.scale == 4 and
+                                        mem.disp == -0x40 and
+                                        op.size == 4):
+                                        print(f"[KEY]: 0x{lst.address:x}:\t{lst.mnemonic}\t{lst.op_str}")"""
+                                # find key
+                                for i in range(len(instructions)):
+                                    instr = instructions[i]
+                                    if instr.address >= addr_start and instr.address <= addr_end:
+                                        #print(f"[Code]: 0x{instr.address:x}:\t{instr.mnemonic}\t{lst.op_str}")
 
-                                     if op.type == X86_OP_MEM:
-                                        mem = op.mem
-                                        print(mem.base)
-                                        print(mem.index)
-                                        print(mem.scale)
-                                        print(mem.disp)
-                                        if (mem.base == X86_REG_RBP and
-                                            mem.index == X86_REG_RAX and
-                                            mem.scale == 4 and
-                                            mem.disp == -0x40 and
-                                            op.size == 4):
-                                            print(f"[KEY]: 0x{lst.address:x}:\t{lst.mnemonic}\t{lst.op_str}")
+                                        if instr.mnemonic == "mov":
+                                            print(f"[CODE]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+
+                                            op = instr.operands[0]
+                                            mem = op.mem
+                                            #print(f"type = {displacement_value}: {mem.disp}")
+                                            if op.type == X86_OP_MEM and mem.disp == displacement_value and base_register == mem.base:
+                                                print(f"[START KEY]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+
+
+                            
                             elif addr_loop_start < lst.address < addr_loop_end:
                                 print(f"0x{lst.address:x}:\t{lst.mnemonic}\t{lst.op_str}")
 
 """
 
-mov    eax,DWORD PTR [rbp+rax*4-0x40]
-xor    edx,eax
+                                    mov    eax,DWORD PTR [rbp + rax * 4 - 0x40] ; 0x40 = 64
+                                    xor    edx,eax
 
 """
