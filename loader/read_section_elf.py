@@ -15,21 +15,6 @@ def check_stripped(file):
     except:
         return True
 
-def get_start_and_end_main(file):
-
-    with open(file, 'rb') as f:
-        elf = ELFFile(f)
-        symtab = elf.get_section_by_name('.symtab')
-        code = symtab.data()
-        addr = symtab['sh_addr']
-    
-        for sym in symtab.iter_symbols():
-            if sym.name == "main":
-                start = sym.entry['st_value']
-                size = sym.entry['st_size']
-                end = start + size
-                return start, end
-
 def read_rodata(file):
     with open(file, 'rb') as f:
         elf = ELFFile(f)
@@ -39,24 +24,6 @@ def read_rodata(file):
 
     print(f"\n{hex(base_addr)} @.rodata: \n{code}")
     return base_addr, code
-
-def extract_intern_function_addr(file, func_name, func_addr):
-    with open(file, 'rb') as f:
-        elf = ELFFile(f)
-        symtab = elf.get_section_by_name('.symtab')
-        code = symtab.data()
-        base_addr = symtab['sh_addr']
-
-        if not symtab:
-            print("not")
-
-        for sym in symtab.iter_symbols():
-            if func_addr == sym['st_value']: #and sym.name == func_name:
-                start = sym.entry['st_value']
-                size = sym.entry['st_size']
-                end = start + size
-                return start, end
-    return 0, 0
 
 def dump_hex(base_addr, data):
     

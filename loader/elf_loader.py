@@ -1,28 +1,23 @@
 from capstone import Cs, CS_ARCH_X86, CS_MODE_64
 from capstone.x86 import *
 import elftools.common.utils as ecu
-from .read_section import *
+from .read_section_elf import *
+from .search_elf import *
 
-def elf_loader32(file):
-    print("ELF 32 bits loader")
+def get_start_and_end_main(file):
 
-# CS_OP_IMM = immediate operands
-
-def function_is_intern(file, target_addr):
-    
     with open(file, 'rb') as f:
         elf = ELFFile(f)
-        text_section = elf.get_section_by_name('.text')
-        text_start = text_section['sh_addr']
-        text_end = text_start + text_section['sh_size']
+        symtab = elf.get_section_by_name('.symtab')
+        code = symtab.data()
+        addr = symtab['sh_addr']
     
-
-        if text_start <= target_addr < text_end:
-            #print(f"Call intern: {hex(target_addr)} (function of binary)")
-            return True
-        else:
-            #print("Call extern (libc / plt / dynsym)")
-            return False
+        for sym in symtab.iter_symbols():
+            if sym.name == "main":
+                start = sym.entry['st_value']
+                size = sym.entry['st_size']
+                end = start + size
+                return start, end
 
 def get_main_list(instructions, addr_main):
     main = [""]
@@ -30,40 +25,7 @@ def get_main_list(instructions, addr_main):
         if instr.address >= addr_main:
             main.append(f"0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
     return main
-
-def xor_search(instr, file):
-    if instr.mnemonic == "xor":
-        op1, op2 = instr.operands
-
-        if op1.type == CS_OP_REG and op2.type == CS_OP_REG: # xor ecx, ecx
-            if op1.reg == op2.reg:
-                print(f"[ZERO]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
-            elif op1.reg != op2.reg:
-                print(f"[MIX REG]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
-
-            elif op1.type == CS_OP_REG and op2.type == CS_OP_IMM: # xor ecx, 0x33
-                print(f"[KEY]:  0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
-
-            elif op1.type == CS_OP_MEM:
-                if op2.type == CS_OP_REG:
-                    print(f"[REG KEY]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
-                elif op2.type == CS_OP_IMM:
-                    print(f"[MEM KEY]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
                 
-def extract_function(file, instructions, func_name, func_addr):
-
-    start_func, end_func = extract_intern_function_addr(file, func_name, func_addr)
-    if start_func == 0 and end_func == 0:
-        print("NULL ADDR")
-        return 
-
-    print(f"Function {func_name}:")
-    for instr in instructions:
-        if instr.address >= start_func and instr.address <= end_func:
-            print(f"[CODE]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
-
-
-
 def elf_loader64(file):
     print("ELF 64 bits loader")
 
@@ -94,47 +56,11 @@ def elf_loader64(file):
         if instr.address >= start_main and instr.address <= end_main:
             
             if instr.mnemonic == "jne" or instr.mnemonic == "je" or instr.mnemonic == "jmp":
-
-                target_jmp = instr.operands[0].imm
-
-                # addr of instruction > addr jump == loop
-                if target_jmp < instr.address and instr.address > addr_main:
-                    addr_loop_start = target_jmp
-                    addr_loop_end = instr.address
-
-                    for lst in instructions:
-                        if lst.address == addr_loop_start:
-                            print(f"\n[LOOP_START]: \n0x{lst.address:x}:\t{lst.mnemonic}\t{lst.op_str}")
-                        if addr_loop_start < lst.address < addr_loop_end:
-                            print(f"0x{lst.address:x}:\t{lst.mnemonic}\t{lst.op_str}")
-                    print("")
-            elif instr.mnemonic == "xor":
-                op1, op2 = instr.operands
-
-                if op1.type == CS_OP_REG and op2.type == CS_OP_REG: # xor ecx, ecx
-                    if op1.reg == op2.reg:
-                        print(f"[ZERO]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
-                    elif op1.reg != op2.reg:
-                        print(f"[MIX REG]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
-
-                elif op1.type == CS_OP_REG and op2.type == CS_OP_IMM: # xor ecx, 0x33
-                    print(f"[KEY]:  0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
-
-                elif op1.type == CS_OP_MEM:
-                    if op2.type == CS_OP_REG:
-                        print(f"[REG KEY]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
-                    elif op2.type == CS_OP_IMM:
-                        print(f"[MEM KEY]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
-                
+                loop_search(instr, instructions, addr_main)
+            if instr.mnemonic == "xor":
+                xor_search(instr)
             elif instr.mnemonic == "call":
-
-                func_addr = instr.operands[0].imm
-                if function_is_intern(file, func_addr):
-                    func_name, addr_name = read_symtab(file, instr.operands[0].imm)
-                    addr_intern_func.append((func_name, func_addr))
-                    print(f"[INTERN FUNCTION {func_name}]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}\n")
-                else:
-                    print(f"[CALL EXTERN FUNCTION]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+                intern_call_search(instr, file, addr_intern_func)
             else:
                 print(f"[CODE]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
 
