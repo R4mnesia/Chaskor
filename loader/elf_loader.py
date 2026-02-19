@@ -56,15 +56,99 @@ def elf_loader64(file):
         if instr.address >= start_main and instr.address <= end_main:
             
             if instr.mnemonic == "jne" or instr.mnemonic == "je" or instr.mnemonic == "jmp":
-                loop_search(instr, instructions, addr_main)
+                loop_search_main(instr, instructions, addr_main)
             if instr.mnemonic == "xor":
                 xor_search(instr)
             elif instr.mnemonic == "call":
                 intern_call_search(instr, file, addr_intern_func)
             else:
                 print(f"[CODE]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+    print("###############")
+    #print("\nINTERN FUNC:")
+    #for name, addr in addr_intern_func:
+    #    extract_function(file, instructions, name, addr)
 
-    print("\nINTERN FUNC:")
-    for name, addr in addr_intern_func:
-        extract_function(file, instructions, name, addr)
+    print(f"{addr_intern_func[0][0]}::::::{addr_intern_func[0][1]}")
+    start_func, end_func = extract_intern_function_addr(file, addr_intern_func[0][0], addr_intern_func[0][1])
+    extract_key_tab(instructions, instr, start_func, end_func)
+
+
+"""
+FIND_KEY_TAB:
+find_loop --> find_xor --> if_xor_true --> find_register_increment --> back_before_loop_check_init_tab
+find_loop --> find_xor --> if_xor_fals --> pass_loop
+"""
+
+"""
+    mix_reg_true --> 
+"""
+def extract_key_tab(instructions, instr, addr_start, addr_end):
     
+    for i in range(len(instructions)):
+        instr = instructions[i]
+
+        if instr.address >= addr_start and instr.address <= addr_end:
+            if instr.mnemonic == "jne" or instr.mnemonic == "je" or instr.mnemonic == "jmp":
+                target_jmp = instr.operands[0].imm
+                if target_jmp < instr.address and instr.address > addr_start:
+                    addr_loop_start = target_jmp
+                    addr_loop_end = instr.address
+
+                    print(instr.operands[0])
+                    for i in range(len(instructions)):
+                        lst = instructions[i]
+                        if lst.address >= addr_start and lst.address <= addr_end:
+                            if lst.address == addr_loop_start:
+                                print(f"\n[LOOP_START]: \n0x{lst.address:x}:\t{lst.mnemonic}\t{lst.op_str}")
+                            if lst.mnemonic == "xor":
+                                op1, op2 = lst.operands
+                                if op1.type == CS_OP_REG and op2.type == CS_OP_REG: # xor ecx, ecx
+                                    if op1.reg != op2.reg: # CHECK after this operand for 
+                                        print(f"[MIX REG]: 0x{lst.address:x}:\t{lst.mnemonic}\t{lst.op_str}")
+
+                                if op1.type == CS_OP_MEM:
+                                    if op2.type == CS_OP_REG:
+                                        print(f"[REG KEY]: 0x{lst.address:x}:\t{lst.mnemonic}\t{lst.op_str}")
+                                    elif op2.type == CS_OP_IMM:
+                                        print(f"[MEM KEY]: 0x{lst.address:x}:\t{lst.mnemonic}\t{lst.op_str}")
+                            if lst.mnemonic == "mov" and instructions[i + 1].mnemonic == "xor":
+                                
+                                # get type of register in xor
+                                reg_op = instructions[i + 1].operands[1]
+                                reg_id = reg_op.reg
+                                reg_xor = instructions[i + 1].reg_name(reg_id)
+                                print(f"reg_xor: {reg_xor}")
+
+                                reg_op_k = lst.operands[0]
+                                reg_id_k = reg_op_k.reg
+                                reg_key = lst.reg_name(reg_id_k)
+                                print(f"reg_key: {reg_key}")
+
+                                if reg_xor == reg_key:
+                                    print("IS KEY")
+                                # check if mov is key tab
+                                # https://d-capstone.dpldocs.info/v0.0.2/capstone.x86.x86_op_mem.html
+                                if lst.mnemonic == "mov":
+                                     op = lst.operands[1]
+
+                                     if op.type == X86_OP_MEM:
+                                        mem = op.mem
+                                        print(mem.base)
+                                        print(mem.index)
+                                        print(mem.scale)
+                                        print(mem.disp)
+                                        if (mem.base == X86_REG_RBP and
+                                            mem.index == X86_REG_RAX and
+                                            mem.scale == 4 and
+                                            mem.disp == -0x40 and
+                                            op.size == 4):
+                                            print(f"[KEY]: 0x{lst.address:x}:\t{lst.mnemonic}\t{lst.op_str}")
+                            elif addr_loop_start < lst.address < addr_loop_end:
+                                print(f"0x{lst.address:x}:\t{lst.mnemonic}\t{lst.op_str}")
+
+"""
+
+mov    eax,DWORD PTR [rbp+rax*4-0x40]
+xor    edx,eax
+
+"""

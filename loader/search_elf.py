@@ -25,7 +25,7 @@ def xor_search(instr):
         return True
     return False
 
-def loop_search(instr, instructions, addr_main):
+def loop_search_main(instr, instructions, addr_main):
 
     target_jmp = instr.operands[0].imm
 
@@ -91,6 +91,21 @@ def extract_intern_function_addr(file, func_name, func_addr):
                 return start, end
     return 0, 0
 
+def loop_search_in_func(instr, instructions, addr_start):
+    target_jmp = instr.operands[0].imm
+
+    # addr of instruction > addr jump == loop
+    if target_jmp < instr.address and instr.address > addr_start:
+        addr_loop_start = target_jmp
+        addr_loop_end = instr.address
+
+        for lst in instructions:
+            if lst.address == addr_loop_start:
+                print(f"\n[LOOP_START]: \n0x{lst.address:x}:\t{lst.mnemonic}\t{lst.op_str}")
+            if addr_loop_start < lst.address < addr_loop_end:
+                print(f"0x{lst.address:x}:\t{lst.mnemonic}\t{lst.op_str}")
+        print("")
+
 def extract_function(file, instructions, func_name, func_addr):
 
     start_func, end_func = extract_intern_function_addr(file, func_name, func_addr)
@@ -99,7 +114,15 @@ def extract_function(file, instructions, func_name, func_addr):
         return 
 
     print(f"Function {func_name}:")
+    addr_intern_func = []
+
     for instr in instructions:
         if instr.address >= start_func and instr.address <= end_func:
-            if xor_search(instr) == False:
+            if instr.mnemonic == "jne" or instr.mnemonic == "je" or instr.mnemonic == "jmp":
+                loop_search_in_func(instr, instructions, start_func)
+            if instr.mnemonic == "xor":
+                xor_search(instr)
+            elif instr.mnemonic == "call":
+                intern_call_search(instr, file, addr_intern_func)
+            else:
                 print(f"[CODE]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
