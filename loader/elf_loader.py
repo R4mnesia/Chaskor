@@ -3,6 +3,7 @@ from capstone.x86 import *
 import elftools.common.utils as ecu
 from .read_section_elf import *
 from .search_elf import *
+from .cfg import *
 
 def get_start_and_end_main(file):
 
@@ -25,9 +26,52 @@ def get_main_list(instructions, addr_main):
         if instr.address >= addr_main:
             main.append(f"0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
     return main
-                
+
+def extract_CFG_main(file):
+
+    with open(file, 'rb') as f:
+        elf = ELFFile(f)
+        text = elf.get_section_by_name('.text')
+        code = text.data()
+        addr = text['sh_addr']
+
+    addr_main = check_stripped(file) # verif with protection
+
+    md = Cs(CS_ARCH_X86, CS_MODE_64)
+    md.detail = True
+
+    instructions = list(md.disasm(code, addr))
+    start_addr_main, end_addr_main = get_start_and_end_main(file)
+
+    instructions_main = []
+    print(hex(start_addr_main))
+    print(hex(end_addr_main))
+    for instr in instructions:
+        #print(f"[CODE]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+        if instr.address >= start_addr_main and instr.address <= end_addr_main:
+            instructions_main.append(instr)
+
+    instructions_main = [Instruction(i) for i in instructions_main]
+    main_cfg = FunctionCFG("main", start_addr_main, instructions_main)
+    main_cfg.build_blocks()
+
+
+    print(main_cfg.name)
+    print(main_cfg.start_addr)
+    for instr in main_cfg.instructions:
+        print(f"[CODE]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+    for block in main_cfg.blocks:
+        print(f"\n[BLOCK] start: 0x{block.start_addr:x}")
+        for instr in block.instructions:
+            print(f"  0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+
+    #print(main_cfg.instructions)
+
+
 def elf_loader64(file):
-    print("ELF 64 bits loader")
+    
+    extract_CFG_main(file)
+    """print("ELF 64 bits loader")
 
     base_addr, code = read_rodata(file)
     dump_hex(base_addr, code)
@@ -70,7 +114,7 @@ def elf_loader64(file):
 
     print(f"{addr_intern_func[0][0]}::::::{addr_intern_func[0][1]}")
     start_func, end_func = extract_intern_function_addr(file, addr_intern_func[0][0], addr_intern_func[0][1])
-    extract_key_tab(instructions, instr, start_func, end_func)
+    extract_key_tab(instructions, instr, start_func, end_func)"""
 
 
 """
@@ -84,6 +128,7 @@ find_loop --> find_xor --> if_xor_fals --> pass_loop
 """
 def extract_key_tab(instructions, instr, addr_start, addr_end):
     
+    key = []
     for i in range(len(instructions)):
         instr = instructions[i]
 
@@ -156,8 +201,9 @@ def extract_key_tab(instructions, instr, addr_start, addr_end):
                                             mem = op.mem
                                             #print(f"type = {displacement_value}: {mem.disp}")
                                             if op.type == X86_OP_MEM and mem.disp == displacement_value and base_register == mem.base:
+                                                index = i + 1
                                                 print(f"[START KEY]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
-
+                                                        
 
                             
                             elif addr_loop_start < lst.address < addr_loop_end:
