@@ -44,27 +44,28 @@ def extract_CFG_main(file):
     start_addr_main, end_addr_main = get_start_and_end_main(file)
 
     instructions_main = []
-    print(hex(start_addr_main))
-    print(hex(end_addr_main))
     for instr in instructions:
-        #print(f"[CODE]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
-        if instr.address >= start_addr_main and instr.address <= end_addr_main:
-            instructions_main.append(instr)
+        #if instr.address >= start_addr_main and instr.address <= end_addr_main:
+        instructions_main.append(instr)
 
     instructions_main = [Instruction(i) for i in instructions_main]
-    main_cfg = FunctionCFG("main", start_addr_main, instructions_main)
+    main_cfg = FunctionCFG(start_addr_main, instructions_main, file)
     main_cfg.build_blocks()
 
 
-    print(main_cfg.name)
     print(main_cfg.start_addr)
-    for instr in main_cfg.instructions:
-        print(f"[CODE]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
-    for block in main_cfg.blocks:
-        print(f"\n[BLOCK] start: 0x{block.start_addr:x}")
+    #for instr in main_cfg.instructions:
+    #    print(f"[CODE]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+    #for block in main_cfg.blocks:
+    #    print(f"\n[BLOCK] start: 0x{block.start_addr:x}")
+    #    for instr in block.instructions:
+    #        print(f"  0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+    for addr in sorted(main_cfg.block_map):
+        block = main_cfg.block_map[addr]
+        print(f"\n[BLOCK] start: 0x{block.start_addr:x} {block.func_name}")
         for instr in block.instructions:
             print(f"  0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
-
+        
     #print(main_cfg.instructions)
 
 
