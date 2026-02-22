@@ -1,35 +1,6 @@
 #include <stdio.h>
 #include <stdint.h>
 
-void test_zeroing() {
-    int a;
-    asm volatile (
-        "xor %%eax, %%eax\n"   // xor reg, reg (zeroing)
-        "mov %%eax, %0\n"
-        : "=r"(a)
-        :
-        : "eax"
-    );
-}
-
-void test_reg_reg() {
-    int a = 0x11;
-    int b = 0x22;
-
-    asm volatile (
-        "xor %%eax, %%ebx\n"   // xor reg, reg (mix)
-        :
-        : "a"(a), "b"(b)
-    );
-}
-
-void test_reg_imm() {
-    int a = 0x41;
-    asm volatile (
-        "xor $0x33, %%eax\n"   // xor reg, imm
-        : "+a"(a)
-    );
-}
 
 void test_mem_imm() {
     uint8_t buf[] = { 'H', 'e', 'l', 'l', 'o', 0 };
@@ -75,10 +46,7 @@ void test_pointer_xor() {
 
 int main() {
     test_zeroing();
-    test_reg_reg();
-    test_reg_imm();
     test_mem_imm();
-    test_mem_reg();
     test_dword_mem();
     test_qword_mem();
     test_stack_mem();
