@@ -51,15 +51,8 @@ def extract_CFG_main(file):
     instructions_main = [Instruction(i) for i in instructions_main]
     main_cfg = FunctionCFG(start_addr_main, instructions_main, file)
     main_cfg.build_blocks()
+    main_cfg.search_xor_key()
 
-
-    print(main_cfg.start_addr)
-    #for instr in main_cfg.instructions:
-    #    print(f"[CODE]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
-    #for block in main_cfg.blocks:
-    #    print(f"\n[BLOCK] start: 0x{block.start_addr:x}")
-    #    for instr in block.instructions:
-    #        print(f"  0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
     for addr in sorted(main_cfg.block_map):
         block = main_cfg.block_map[addr]
         if block.is_loop == True:
@@ -67,7 +60,10 @@ def extract_CFG_main(file):
         else:
             print(f"\n[BLOCK] start: 0x{block.start_addr:x} {block.func_name}")
         for instr in block.instructions:
-            print(f"  0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+            if instr.xor_type != None:
+                print(f"[{instr.xor_type}]  0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+            else:
+                print(f"  0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
         
     #print(main_cfg.instructions)
 

@@ -1,4 +1,6 @@
 from elftools.elf.elffile import ELFFile
+from capstone.x86 import *
+
 # ------------------- Instruction -------------------
 
 class Instruction:
@@ -7,6 +9,8 @@ class Instruction:
         self.mnemonic = capstone_instr.mnemonic
         self.operands = capstone_instr.operands
         self.op_str = capstone_instr.op_str
+
+        self.xor_type = None
 
     def is_jump(self):
         return self.mnemonic in ["jmp", "je", "jne"]
@@ -20,6 +24,21 @@ class Instruction:
     def is_xor(self):
         return self.mnemonic == "xor"
 
+    def get_xor_type(self):
+        op1, op2 = self.operands
+        if op1.type == CS_OP_REG and op2.type == CS_OP_REG: # xor ecx, ecx
+            if op1.reg == op2.reg:
+                self.xor_type = "ZERO"
+            elif op1.reg != op2.reg: # CHECK after this operand for 
+                self.xor_type = "MIX"
+        elif op1.type == CS_OP_REG and op2.type == CS_OP_IMM: # xor ecx, 0x33
+                self.xor_type = "KEY"
+        #elif op1.type == CS_OP_MEM:
+        #    if op2.type == CS_OP_REG:
+        #        print(f"[REG KEY]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+        #    elif op2.type == CS_OP_IMM:
+        #        print(f"[MEM KEY]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+        return self.xor_type
 
 # ------------------- BasicBlock -------------------
 
@@ -29,6 +48,7 @@ class BasicBlock:
         self.func_name = func_name
         self.instructions = []
         self.successors = [] # basicblock class ->> next
+        self.predecessors = []
 
         self.is_loop = False
 
@@ -37,6 +57,10 @@ class BasicBlock:
 
     def add_successor(self, block):
         self.successors.append(block)
+        block.predecessors.append(self)
+
+    def add_predecessors(self, block):
+        self.predecessors.append(block)
     
     def set_loop(self):
         self.is_loop = True
@@ -85,51 +109,107 @@ class FunctionCFG:
         return f"func_{hex(addr)}"
 
     def build_blocks(self):
-        current_block = None
 
-        for i, instr in enumerate(self.instructions):
-            if current_block is None:
-                current_block = self.get_or_create_block(instr.address)
+        addr_to_instr = {}
+        for instr in self.instructions:
+            addr_to_instr[instr.address] = instr
 
-            current_block.add_instruction(instr)
+        worklist = [self.start_addr]
+        print(f"worklist: {hex(worklist[0])}")
+        visited = set()
 
-            if instr.is_call():
+        sorted_addrs = sorted(addr_to_instr.keys())
+        #print(f"key: {addr_to_instr.keys()}")
 
-                target = instr.operands[0].imm
-                successor_block = self.get_or_create_block(target)
-                current_block.add_successor(successor_block)
+        def get_next_addr(addr):
+            if addr not in addr_to_instr:
+                return None
+            idx = sorted_addrs.index(addr)
+            if idx + 1 < len(sorted_addrs):
+                return sorted_addrs[idx + 1]
+            return None
 
-                if len(self.instructions) > i + 1:
-                    fall_addr = self.instructions[i + 1].address
-                    fall_block = self.get_or_create_block(fall_addr)
-                    current_block.add_successor(fall_block)
+        while worklist:
+            start_addr = worklist.pop()
 
-            # end of block -> jump / call / ret
-            if instr.is_jump():
+            if start_addr in visited:
+                continue
+            if start_addr not in addr_to_instr:
+                continue
 
-                target = instr.operands[0].imm
-                successor_block = self.get_or_create_block(target)
-                current_block.add_successor(successor_block)
+            visited.add(start_addr)
 
-                # fall through for conditional jump
-                if instr.mnemonic != "jmp":
-                    if len(self.instructions) > i + 1:
-                        fall_addr = self.instructions[i + 1].address
-                        fall_block = self.get_or_create_block(fall_addr)
-                        current_block.add_successor(fall_block)
+            current_block = self.get_or_create_block(start_addr)
+            addr = start_addr
 
-                # if is loop
-                if target == current_block.get_start_address():
-                    print(f"Target: {hex(target)}, start_addr {hex(current_block.get_start_address())}")
-                    current_block.set_loop()
+            while True:
+                if addr not in addr_to_instr:
+                    break
 
-                current_block = None
-            elif instr.is_ret():
-                current_block = None
+                instr = addr_to_instr[addr]
+                current_block.add_instruction(instr)
 
-    #def find_xor(self):
-    #    for instr in self.instructions:
-            
+                if instr.is_ret():
+                    break
+
+                if instr.is_jump() and instr.operands[0].type == CS_OP_IMM:
+
+                    target = instr.operands[0].imm
+                    current_block.add_successor(self.get_or_create_block(target))
+                    worklist.append(target)
+
+                    # fall through for conditional jump
+                    if instr.mnemonic != "jmp":
+                        next_addr = get_next_addr(addr)
+                        if next_addr:
+                            current_block.add_successor(self.get_or_create_block(next_addr))
+                            worklist.append(next_addr)
+                    
+                    if target in self.block_map and target < current_block.get_start_address():
+                        # get predecessors block (start loop)
+                        target_block = self.get_or_create_block(target)
+                        target_block.set_loop()
+                    break
+
+                if instr.is_call() and instr.operands[0].type == CS_OP_IMM:
+
+                    target = instr.operands[0].imm
+                    current_block.add_successor(self.get_or_create_block(target))
+                    worklist.append(target)
+                    
+                    if target in visited:
+                        print(f"Target: {hex(target)}, start_addr {hex(current_block.get_start_address())}")
+
+                    next_addr = get_next_addr(addr)
+                    if next_addr:
+                        current_block.add_successor(self.get_or_create_block(next_addr))
+                        worklist.append(next_addr)
+                    break
+
+                if instr.is_xor():
+                    xor_type = instr.get_xor_type()
+
+                next_addr = get_next_addr(addr)
+
+                if next_addr in self.block_map:
+                    current_block.add_successor(self.get_or_create_block(next_addr))
+                    worklist.append(next_addr)
+                    break
+                if not next_addr:
+                    break
+
+                addr = next_addr
+
+    def search_xor_key(self):
+        for addr in sorted(self.block_map):
+            block = self.block_map[addr]
+            if block.is_loop == True:
+                print(f"\n[LOOP] start: 0x{block.start_addr:x} {block.func_name}")
+                for instr in block.instructions:
+                    if instr.xor_type != None:
+                        print(f"[{instr.xor_type}]  0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+                    else:
+                        print(f"  0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
 
     def get_or_create_block(self, addr):
         if addr not in self.block_map:
