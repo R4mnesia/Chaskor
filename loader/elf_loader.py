@@ -62,61 +62,17 @@ def extract_CFG_main(file):
     #        print(f"  0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
     for addr in sorted(main_cfg.block_map):
         block = main_cfg.block_map[addr]
-        print(f"\n[BLOCK] start: 0x{block.start_addr:x} {block.func_name}")
+        if block.is_loop == True:
+            print(f"\n[BLOCK LOOP] start: 0x{block.start_addr:x} {block.func_name}")
+        else:
+            print(f"\n[BLOCK] start: 0x{block.start_addr:x} {block.func_name}")
         for instr in block.instructions:
             print(f"  0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
         
     #print(main_cfg.instructions)
 
-
 def elf_loader64(file):
-    
     extract_CFG_main(file)
-    """print("ELF 64 bits loader")
-
-    base_addr, code = read_rodata(file)
-    dump_hex(base_addr, code)
-
-    with open(file, 'rb') as f:
-        elf = ELFFile(f)
-        text = elf.get_section_by_name('.text')
-        code = text.data()
-        addr = text['sh_addr']
-
-    addr_main = check_stripped(file) # verif with protection
-
-    md = Cs(CS_ARCH_X86, CS_MODE_64)
-    md.detail = True    
-
-    instructions = list(md.disasm(code, addr))
-
-    start_main, end_main = get_start_and_end_main(file)
-
-    loop = [""]
-    addr_intern_func = []
-    
-    print("<main>:")
-    for instr in instructions:
-
-        if instr.address >= start_main and instr.address <= end_main:
-            
-            if instr.mnemonic == "jne" or instr.mnemonic == "je" or instr.mnemonic == "jmp":
-                loop_search_main(instr, instructions, addr_main)
-            if instr.mnemonic == "xor":
-                xor_search(instr)
-            elif instr.mnemonic == "call":
-                intern_call_search(instr, file, addr_intern_func)
-            else:
-                print(f"[CODE]: 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
-    print("###############")
-    #print("\nINTERN FUNC:")
-    #for name, addr in addr_intern_func:
-    #    extract_function(file, instructions, name, addr)
-
-    print(f"{addr_intern_func[0][0]}::::::{addr_intern_func[0][1]}")
-    start_func, end_func = extract_intern_function_addr(file, addr_intern_func[0][0], addr_intern_func[0][1])
-    extract_key_tab(instructions, instr, start_func, end_func)"""
-
 
 """
 FIND_KEY_TAB:

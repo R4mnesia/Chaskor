@@ -30,11 +30,19 @@ class BasicBlock:
         self.instructions = []
         self.successors = [] # basicblock class ->> next
 
+        self.is_loop = False
+
     def add_instruction(self, instr):
         self.instructions.append(instr)
 
     def add_successor(self, block):
         self.successors.append(block)
+    
+    def set_loop(self):
+        self.is_loop = True
+
+    def get_start_address(self):
+        return self.start_addr
 
 
 # ------------------- FunctionCFG -------------------
@@ -63,7 +71,6 @@ class FunctionCFG:
     def __init__(self, start_addr, instructions, file):
         self.start_addr = start_addr
         self.instructions = instructions
-        #self.blocks = [] # basic block class
         self.block_map = {} # link address with block
         self.file = file
 
@@ -86,9 +93,20 @@ class FunctionCFG:
 
             current_block.add_instruction(instr)
 
+            if instr.is_call():
+
+                target = instr.operands[0].imm
+                successor_block = self.get_or_create_block(target)
+                current_block.add_successor(successor_block)
+
+                if len(self.instructions) > i + 1:
+                    fall_addr = self.instructions[i + 1].address
+                    fall_block = self.get_or_create_block(fall_addr)
+                    current_block.add_successor(fall_block)
+
             # end of block -> jump / call / ret
             if instr.is_jump():
-                
+
                 target = instr.operands[0].imm
                 successor_block = self.get_or_create_block(target)
                 current_block.add_successor(successor_block)
@@ -100,24 +118,21 @@ class FunctionCFG:
                         fall_block = self.get_or_create_block(fall_addr)
                         current_block.add_successor(fall_block)
 
+                # if is loop
+                if target == current_block.get_start_address():
+                    print(f"Target: {hex(target)}, start_addr {hex(current_block.get_start_address())}")
+                    current_block.set_loop()
+
                 current_block = None
             elif instr.is_ret():
                 current_block = None
+
+    #def find_xor(self):
+    #    for instr in self.instructions:
+            
 
     def get_or_create_block(self, addr):
         if addr not in self.block_map:
             func_name = self.get_func_name(addr)
             self.block_map[addr] = BasicBlock(addr, func_name)
         return self.block_map[addr]
-
-"""instructions = list(md.disasm(code, addr))
-instructions = [Instruction(i) for i in instructions]
-
-start_addr_main = main_addr
-instructions_main = [] # read instr for call functionCFG
-main_cfg = FunctionCFG("main", start_addr_main, instructions_main)
-main_cfg.build_blocks()"""
-
-#func_cfg = FunctionCFG("func_a", start_addr_func, instructions_func)
-#func_cfg.build_blocks()
-#func_cfg.blocks[0]
