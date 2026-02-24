@@ -53,7 +53,7 @@ def extract_CFG_main(file):
     main_cfg.build_blocks()
     main_cfg.search_xor_key()
 
-    for addr in sorted(main_cfg.block_map):
+    """for addr in sorted(main_cfg.block_map):
         block = main_cfg.block_map[addr]
         if block.is_loop == True:
             print(f"\n[BLOCK LOOP] start: 0x{block.start_addr:x} {block.func_name}")
@@ -63,7 +63,7 @@ def extract_CFG_main(file):
             if instr.xor_type != None:
                 print(f"[{instr.xor_type}]  0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
             else:
-                print(f"  0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+                print(f"  0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")"""
         
     #print(main_cfg.instructions)
 

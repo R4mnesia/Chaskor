@@ -200,16 +200,50 @@ class FunctionCFG:
 
                 addr = next_addr
 
-    def search_xor_key(self):
+    """def search_xor_key(self):
         for addr in sorted(self.block_map):
             block = self.block_map[addr]
             if block.is_loop == True:
                 print(f"\n[LOOP] start: 0x{block.start_addr:x} {block.func_name}")
                 for instr in block.instructions:
-                    if instr.xor_type != None:
-                        print(f"[{instr.xor_type}]  0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+                    if instr.xor_type != None and instr.xor_type == "MIX":
+                        for op in instr.operands:
+                            inst = self.find_definition(op.reg, block.instructions, idx)
+                        #print(f"[{instr.xor_type}]  0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+                    else:
+                        print(f"  0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")"""
+
+    def search_xor_key(self):
+        for addr in sorted(self.block_map):
+            block = self.block_map[addr]
+
+            if block.is_loop:
+                print(f"\n[LOOP] start: 0x{block.start_addr:x} {block.func_name}")
+
+                for idx, instr in enumerate(block.instructions):
+                    if instr.is_xor() and instr.xor_type == "MIX":
+                        print(f"[KEY] 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+
+                        for op in instr.operands:
+                            if op.type == CS_OP_REG:
+                                def_instr, info = self.find_definition(op.reg, block.instructions, idx)
+                                if def_instr:
+                                    print(f"{info} comes from 0x{def_instr.address:x} {def_instr.mnemonic} {def_instr.op_str}")
                     else:
                         print(f"  0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+
+    def find_definition(self, reg, instructions, current_index):
+        for i in range(current_index - 1, -1, -1):
+            instr = instructions[i]
+
+            if instr.operands and instr.operands[0].type == CS_OP_REG:
+                if instr.operands[0].reg == reg:
+                    src_op = instr.operands[1]
+                    if src_op.type == CS_OP_MEM and src_op.mem.scale > 1:
+                        return instr, "key"
+                    if src_op.type == CS_OP_MEM and src_op.mem.scale == 1:
+                        return instr, "data"
+        return None
 
     def get_or_create_block(self, addr):
         if addr not in self.block_map:
