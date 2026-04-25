@@ -1,8 +1,8 @@
 import argparse
 
 def handle_binary(args):
-    print(f"Binary type: {args.exec}")
-    print(f"File: {args.file}")
+    print(f"[*] Binary type: {args.exec}")
+    print(f"[*] File: {args.file}")
 
 def parsing_arg():
     parser = argparse.ArgumentParser(description="DesOfuscaXOR")
