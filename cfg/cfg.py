@@ -103,6 +103,8 @@ class FunctionCFG:
 
                 if instr.is_xor():
                     xor_type = instr.get_xor_type()
+                    self.search_xor_key(xor_type)
+
 
                 next_addr = self.get_next_addr(addr)
 
@@ -115,7 +117,9 @@ class FunctionCFG:
 
                 addr = next_addr
 
-    def search_xor_key(self):
+    def search_xor_key(self, xor_type):
+        if xor_type != "MIX":
+            return
         for addr in sorted(self.block_map):
             block = self.block_map[addr]
 
@@ -128,7 +132,7 @@ class FunctionCFG:
 
                 for idx, instr in enumerate(block.instructions):
                     if instr.is_xor() and instr.xor_type == "MIX":
-                        print(f"[KEY] 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
+                        #print(f"[KEY] 0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
 
                         for op in instr.operands:
                             if op.type == CS_OP_REG:
@@ -138,6 +142,7 @@ class FunctionCFG:
                                 if def_instr:
                                     
                                     if info == "key":
+                                        print("Pred_BLOCK")
                                         self.find_definition_on_predecessor_block(block_predecessors, op)
                                     print(f"{info} comes from 0x{def_instr.address:x} {def_instr.mnemonic} {def_instr.op_str}")
                     else:

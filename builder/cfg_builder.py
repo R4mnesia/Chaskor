@@ -8,7 +8,6 @@ from loader.read_section_elf import get_start_and_end_main
 
 def print_cfg(file, cfg):
 
-    print("AAAAAAAAAAA\n")
     for addr in sorted(cfg.block_map):
         block = cfg.block_map[addr]
         if block.is_loop == True:
@@ -20,9 +19,6 @@ def print_cfg(file, cfg):
                 print(f"[{instr.xor_type}]  0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
             else:
                 print(f"  0x{instr.address:x}:\t{instr.mnemonic}\t{instr.op_str}")
-
-def analyze_xor(cfg):
-    cfg.search_xor_key()
 
 def build_cfg(start_addr, end_addr, instructions, file):
     instructions_main = []
