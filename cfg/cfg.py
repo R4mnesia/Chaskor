@@ -13,6 +13,10 @@ class FunctionCFG:
 
         self.functions = load_functions(file)
 
+        self.addr_to_instr = {instr.address: instr for instr in self.instructions}  # addr --> instr
+        self.sorted_addrs = sorted(self.addr_to_instr.keys())
+        self.addr_index = {addr: i for i, addr in enumerate(self.sorted_addrs)}     # index of addr
+
     def get_func_name(self, addr):
         for func in self.functions:
             if func["start"] <= addr < func["end"]:
@@ -21,35 +25,57 @@ class FunctionCFG:
         # stripped binary or extern function
         return f"func_{hex(addr)}"
 
+    def handle_jump(self, instr, current_block, worklist, addr):
+        target = instr.operands[0].imm
+        current_block.add_successor(self.get_or_create_block(target))
+        worklist.append(target)
 
+        # fall through for conditional jump
+        if instr.mnemonic != "jmp":
+            next_addr = self.get_next_addr(addr)
+            if next_addr:
+                current_block.add_successor(self.get_or_create_block(next_addr))
+                worklist.append(next_addr)
+                    
+        if target in self.block_map and target < current_block.get_start_address():
+            # get predecessors block (start loop)
+            target_block = self.get_or_create_block(target)
+            target_block.set_loop()
+
+    def handle_call(self, instr, current_block, worklist, visited, addr):
+        target = instr.operands[0].imm
+
+        current_block.add_successor(self.get_or_create_block(target))
+        worklist.append(target)
+        
+        if target in visited:
+            print(f"Target: {hex(target)}, start_addr {hex(current_block.get_start_address())}")
+
+        next_addr = self.get_next_addr(addr)
+        if next_addr:
+            current_block.add_successor(self.get_or_create_block(next_addr))
+            worklist.append(next_addr)
+
+    def get_next_addr(self, addr):
+        if addr not in self.addr_to_instr:
+            return None
+        idx = self.addr_index[addr]
+        if idx + 1 < len(self.sorted_addrs):
+            return self.sorted_addrs[idx + 1]
+        return None
 
     def build_blocks(self):
-
-        addr_to_instr = {}
-        for instr in self.instructions:
-            addr_to_instr[instr.address] = instr
 
         worklist = [self.start_addr]
         print(f"worklist: {hex(worklist[0])}")
         visited = set()
-
-        sorted_addrs = sorted(addr_to_instr.keys())
-        #print(f"key: {addr_to_instr.keys()}")
-
-        def get_next_addr(addr):
-            if addr not in addr_to_instr:
-                return None
-            idx = sorted_addrs.index(addr)
-            if idx + 1 < len(sorted_addrs):
-                return sorted_addrs[idx + 1]
-            return None
 
         while worklist:
             start_addr = worklist.pop()
 
             if start_addr in visited:
                 continue
-            if start_addr not in addr_to_instr:
+            if start_addr not in self.addr_to_instr:
                 continue
 
             visited.add(start_addr)
@@ -58,29 +84,29 @@ class FunctionCFG:
             addr = start_addr
 
             while True:
-                if addr not in addr_to_instr:
+                if addr not in self.addr_to_instr:
                     break
 
-                instr = addr_to_instr[addr]
+                instr = self.addr_to_instr[addr]
                 current_block.add_instruction(instr)
 
                 if instr.is_ret():
                     break
 
                 if instr.is_jump() and instr.operands[0].type == CS_OP_IMM:
-                    self.handle_jump(instr, current_block, worklist, get_next_addr, addr)
+                    self.handle_jump(instr, current_block, worklist, addr)
                     break
 
                 if instr.is_call() and instr.operands[0].type == CS_OP_IMM:
-                    self.handle_call(instr, current_block, worklist, get_next_addr, visited, addr)
+                    self.handle_call(instr, current_block, worklist, visited, addr)
                     break
 
                 if instr.is_xor():
                     xor_type = instr.get_xor_type()
 
-                next_addr = get_next_addr(addr)
+                next_addr = self.get_next_addr(addr)
 
-                if next_addr in self.block_map:
+                if next_addr and next_addr in self.block_map:
                     current_block.add_successor(self.get_or_create_block(next_addr))
                     worklist.append(next_addr)
                     break
@@ -131,36 +157,7 @@ class FunctionCFG:
                     if src_op.type == CS_OP_MEM and src_op.mem.scale == 1:
                         return instr, "data"
         return None
-    def handle_jump(self, instr, current_block, worklist, get_next_addr, addr):
-        target = instr.operands[0].imm
-        current_block.add_successor(self.get_or_create_block(target))
-        worklist.append(target)
 
-        # fall through for conditional jump
-        if instr.mnemonic != "jmp":
-            next_addr = get_next_addr(addr)
-            if next_addr:
-                current_block.add_successor(self.get_or_create_block(next_addr))
-                worklist.append(next_addr)
-                    
-        if target in self.block_map and target < current_block.get_start_address():
-            # get predecessors block (start loop)
-            target_block = self.get_or_create_block(target)
-            target_block.set_loop()
-
-    def handle_call(self, instr, current_block, worklist, get_next_addr, visited, addr):
-        target = instr.operands[0].imm
-
-        current_block.add_successor(self.get_or_create_block(target))
-        worklist.append(target)
-        
-        if target in visited:
-            print(f"Target: {hex(target)}, start_addr {hex(current_block.get_start_address())}")
-
-        next_addr = get_next_addr(addr)
-        if next_addr:
-            current_block.add_successor(self.get_or_create_block(next_addr))
-            worklist.append(next_addr)
     def find_definition_on_predecessor_block(self, block_predecessors, op):
 
         #op.mem.base = rbp
